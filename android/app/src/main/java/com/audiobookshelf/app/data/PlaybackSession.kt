@@ -84,7 +84,7 @@ class PlaybackSession(
     get() = currentTime / getTotalDuration()
   @get:JsonIgnore
   val mediaItemId
-    get() = if (episodeId.isNullOrEmpty()) libraryItemId ?: "" else "$libraryItemId-$episodeId"
+    get() = if (episodeId.isNullOrEmpty()) libraryItemId ?: localLibraryItem?.id ?: "" else "$libraryItemId-$episodeId"
 
   @JsonIgnore
   fun getCurrentTrackIndex(): Int {

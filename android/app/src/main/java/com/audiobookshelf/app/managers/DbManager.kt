@@ -297,9 +297,9 @@ class DbManager {
         }
       }
 
-      if (lli.serverConnectionConfigId == null) {
-        // Local-only item support was removed in app version 0.9.67, remove any remaining local
-        // only items beginning in 0.9.80
+      if (lli.serverConnectionConfigId == null && !lli.isScanned) {
+        // Legacy local-only items (not linked to a server) were removed in app version 0.9.67.
+        // Items indexed from a user-selected folder (isScanned) are the standalone library and are kept.
         Log.d(tag, "cleanLocalLibraryItems: Local only item ${lli.id} - removing from ABS")
         Paper.book("localLibraryItems").delete(lli.id)
       } else if (hasUpdates) {

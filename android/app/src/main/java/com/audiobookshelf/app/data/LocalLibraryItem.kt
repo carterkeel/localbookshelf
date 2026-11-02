@@ -39,7 +39,10 @@ class LocalLibraryItem(
   var serverConnectionConfigId:String?,
   var serverAddress:String?,
   var serverUserId:String?,
-  var libraryItemId:String?
+  var libraryItemId:String?,
+  // True when this item was indexed in place from a folder the user selected (standalone library).
+  // The audio files stay where they are and must never be deleted by the app.
+  var isScanned:Boolean = false
   ) : LibraryItemWrapper(id) {
   @get:JsonIgnore
   val title get() = media.metadata.title

@@ -14,11 +14,15 @@ import com.anggrayudi.storage.file.*
 import com.audiobookshelf.app.MainActivity
 import com.audiobookshelf.app.data.LocalFolder
 import com.audiobookshelf.app.device.DeviceManager
+import com.audiobookshelf.app.device.LocalBookScanner
 import com.fasterxml.jackson.core.json.JsonReadFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 @CapacitorPlugin(name = "AbsFileSystem")
 class AbsFileSystem : Plugin() {
@@ -203,6 +207,89 @@ class AbsFileSystem : Plugin() {
     call.resolve(jsObject)
   }
 
+  /**
+   * Lists every file under a folder the user selected (recursively) as a flat list.
+   * The web layer groups the files into books and parses names (utils/local/folderParsing.js).
+   */
+  @PluginMethod
+  fun listFolderFiles(call: PluginCall) {
+    val folderId = call.data.getString("folderId", "").toString()
+    val folder = DeviceManager.dbManager.getLocalFolder(folderId)
+    if (folder == null) {
+      call.reject("Folder not found")
+      return
+    }
+
+    GlobalScope.launch(Dispatchers.IO) {
+      try {
+        val listing = LocalBookScanner(context).listFolderFiles(folder)
+        val filesArray = JSArray()
+        listing.files.forEach { f ->
+          val obj = JSObject()
+          obj.put("name", f.name)
+          obj.put("reldirpath", f.relDirPath)
+          obj.put("extension", f.extension)
+          obj.put("deep", f.deep)
+          obj.put("contentUrl", f.contentUrl)
+          obj.put("size", f.size)
+          obj.put("mimeType", f.mimeType)
+          filesArray.put(obj)
+        }
+        val dirsObj = JSObject()
+        listing.dirs.forEach { (rel, url) -> dirsObj.put(rel, url) }
+
+        val res = JSObject()
+        res.put("files", filesArray)
+        res.put("dirs", dirsObj)
+        call.resolve(res)
+      } catch (e: Exception) {
+        Log.e(tag, "listFolderFiles failed", e)
+        call.reject("Failed to list folder: ${e.message}")
+      }
+    }
+  }
+
+  /**
+   * Indexes books described by the web layer: reads duration/tags/cover from the audio files and
+   * saves them as local library items. Emits "onScanProgress" {done,total,title} while working.
+   */
+  @PluginMethod
+  fun scanLocalBooks(call: PluginCall) {
+    val folderId = call.data.getString("folderId", "").toString()
+    val items = call.getArray("items")
+    val folder = DeviceManager.dbManager.getLocalFolder(folderId)
+    if (folder == null || items == null) {
+      call.reject("Folder or items missing")
+      return
+    }
+
+    GlobalScope.launch(Dispatchers.IO) {
+      try {
+        val result =
+                LocalBookScanner(context).scanItems(folder, items) { done, total, title ->
+                  if (done == total || done % 3 == 0) {
+                    val progress = JSObject()
+                    progress.put("done", done)
+                    progress.put("total", total)
+                    progress.put("title", title)
+                    notifyListeners("onScanProgress", progress)
+                  }
+                }
+        val res = JSObject()
+        res.put("added", result.added)
+        res.put("updated", result.updated)
+        res.put("removed", result.removed)
+        val failed = JSArray()
+        result.failed.forEach { failed.put(it) }
+        res.put("failed", failed)
+        call.resolve(res)
+      } catch (e: Exception) {
+        Log.e(tag, "scanLocalBooks failed", e)
+        call.reject("Scan failed: ${e.message}")
+      }
+    }
+  }
+
   @PluginMethod
   fun removeFolder(call: PluginCall) {
     val folderId = call.data.getString("folderId", "").toString()
@@ -226,6 +313,14 @@ class AbsFileSystem : Plugin() {
 
     // Check if should delete subfolder
     val localLibraryItem = DeviceManager.dbManager.getLocalLibraryItem(localLibraryItemId)
+
+    // Items indexed in place from a user-selected folder are the user's own files.
+    // Only remove them from the library, never delete anything from storage.
+    if (localLibraryItem?.isScanned == true) {
+      DeviceManager.dbManager.removeLocalLibraryItem(localLibraryItemId)
+      call.resolve(JSObject("{\"success\":true}"))
+      return
+    }
 
     val success: Boolean
 
@@ -292,6 +387,11 @@ class AbsFileSystem : Plugin() {
     val localLibraryItem = DeviceManager.dbManager.getLocalLibraryItem(localLibraryItemId)
     if (localLibraryItem == null) {
       Log.e(tag, "deleteTrackFromItem: LLI does not exist $localLibraryItemId")
+      return call.resolve(JSObject("{\"success\":false}"))
+    }
+    if (localLibraryItem.isScanned) {
+      // Never delete the user's own audio files from a scanned library
+      Log.w(tag, "deleteTrackFromItem: refusing to delete a file of a scanned library item")
       return call.resolve(JSObject("{\"success\":false}"))
     }
 
