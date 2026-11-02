@@ -292,6 +292,29 @@ class AbsFileSystem : Plugin() {
     }
   }
 
+  /** Applies metadata matched from an online provider to a scanned book (fields + cover). */
+  @PluginMethod
+  fun applyLocalItemMetadata(call: PluginCall) {
+    val itemId = call.data.getString("id", "").toString()
+    val metadata = call.getObject("metadata")
+    if (itemId.isEmpty() || metadata == null) {
+      call.reject("id and metadata are required")
+      return
+    }
+
+    GlobalScope.launch(Dispatchers.IO) {
+      try {
+        val ok = LocalBookScanner(context).applyMetadata(itemId, metadata)
+        val res = JSObject()
+        res.put("success", ok)
+        call.resolve(res)
+      } catch (e: Exception) {
+        Log.e(tag, "applyLocalItemMetadata failed", e)
+        call.reject("Failed to apply metadata: ${e.message}")
+      }
+    }
+  }
+
   @PluginMethod
   fun removeFolder(call: PluginCall) {
     val folderId = call.data.getString("folderId", "").toString()

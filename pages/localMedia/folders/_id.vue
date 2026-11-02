@@ -15,6 +15,7 @@
         <div class="h-full bg-success" :style="{ width: scanPercent + '%' }" />
       </div>
       <p v-if="scanning && scanProgress.title" class="text-xs text-fg-muted mt-1 truncate">{{ scanProgress.title }}</p>
+      <ui-btn v-if="!scanning && itemsNeedingMetadata.length && networkConnected" small class="w-full mt-2" :loading="matching" :disabled="matching" @click="fetchMetadata">{{ matching ? matchStatusText : $strings.ButtonFetchMetadata }}</ui-btn>
     </div>
 
     <p class="mb-2 text-base text-fg">{{ $strings.HeaderLocalLibraryItems }} ({{ localLibraryItems.length }})</p>
@@ -41,10 +42,13 @@
 </template>
 
 <script>
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem } from '@/plugins/capacitor'
 import localScan from '@/utils/local/buildScanItems'
+import localMatch from '@/utils/local/matchLibrary'
+import localMatcher from '@/utils/local/matcher'
+import localHttp from '@/utils/local/http'
 
 export default {
   asyncData({ params, query }) {
@@ -61,10 +65,18 @@ export default {
       showDialog: false,
       scanning: false,
       scanStatusText: '',
-      scanProgress: { done: 0, total: 0, title: '' }
+      scanProgress: { done: 0, total: 0, title: '' },
+      matching: false,
+      matchStatusText: ''
     }
   },
   computed: {
+    networkConnected() {
+      return this.$store.state.networkConnected
+    },
+    itemsNeedingMetadata() {
+      return this.localLibraryItems.filter(localMatch.needsMatch)
+    },
     canScan() {
       // Audiobooks can be indexed from any folder the user selected (not the app's internal storage)
       return !!this.folder && this.mediaType === 'book' && !this.isInternalStorage
@@ -126,12 +138,43 @@ export default {
           this.$toast.warning(this.$getString('MessageLocalLibraryScanSkipped', [res.failed.length]))
         }
         await this.init()
+        // Look up descriptions, narrators, series and covers online when there is a connection
+        if (this.networkConnected) {
+          await this.fetchMetadata()
+        }
       } catch (error) {
         console.error('Failed to scan folder', error)
         this.$toast.error(`${this.$strings.MessageLocalLibraryScanFailed}: ${error?.message || error}`)
       } finally {
         if (progressListener) progressListener.remove()
         this.scanning = false
+      }
+    },
+    /**
+     * Match the scanned books against online metadata providers (Audible, then Google Books) and fill
+     * in what is missing. Folder-derived titles/authors/series are never overwritten.
+     */
+    async fetchMetadata() {
+      const items = this.itemsNeedingMetadata
+      if (this.matching || !items.length) return
+      this.matching = true
+      this.matchStatusText = this.$getString('MessageLocalLibraryFetchingMetadata', [1, items.length])
+      try {
+        const providers = localMatcher.createProviders({ http: localHttp.createHttp(CapacitorHttp) })
+        const res = await localMatch.matchLocalItems(items, {
+          providers,
+          apply: (id, metadata) => AbsFileSystem.applyLocalItemMetadata({ id, metadata }),
+          onProgress: (done, total) => {
+            this.matchStatusText = this.$getString('MessageLocalLibraryFetchingMetadata', [Math.min(done + 1, total), total])
+          }
+        })
+        this.$toast.success(this.$getString('MessageLocalLibraryMetadataComplete', [res.matched, res.total]))
+        await this.init()
+      } catch (error) {
+        console.error('Failed to fetch metadata', error)
+        this.$toast.error(`${error?.message || error}`)
+      } finally {
+        this.matching = false
       }
     },
     getLocalLibraryItemSubText(localLibraryItem) {

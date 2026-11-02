@@ -283,7 +283,16 @@ class LocalBookScanner(private val ctx: Context) {
     }
     if (tracks.isEmpty()) return false
 
-    // Cover: an image file in the book folder, else the picture embedded in the first audio file
+    // A cover the app saved earlier (embedded in the audio, or downloaded from a metadata match)
+    val existingInternalCover: LocalFile? =
+            if (existing != null && existing.coverContentUrl?.startsWith("file:") == true) {
+              existing.localFiles.find { it.contentUrl == existing.coverContentUrl }
+            } else {
+              null
+            }
+
+    // Cover: an image file in the book folder, else the one saved earlier, else the picture
+    // embedded in the first audio file
     var coverContentUrl: String? = null
     var coverAbsolutePath: String? = null
     val coverFile = pickCoverFile(dto.files)
@@ -301,6 +310,9 @@ class LocalBookScanner(private val ctx: Context) {
                       coverFile.size
               )
       )
+    } else if (existingInternalCover != null) {
+      // Re-scan: keep the cover we already have (updateFromScan drops covers not in this list)
+      localFiles.add(existingInternalCover)
     } else {
       val picture = firstProbe?.embeddedPicture
       val saved = if (picture != null) saveEmbeddedCover(itemId, picture) else null
@@ -431,6 +443,141 @@ class LocalBookScanner(private val ctx: Context) {
             )
     DeviceManager.dbManager.saveLocalLibraryItem(item)
     return true
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Step 3 (optional): apply metadata matched from an online provider
+  // ---------------------------------------------------------------------------------------------
+
+  /**
+   * Applies metadata chosen by the web layer (matched from a metadata provider) to a scanned item.
+   * Only the fields present in [obj] are changed; the web layer decides which fields to send.
+   * Returns false when the item no longer exists.
+   */
+  fun applyMetadata(itemId: String, obj: JSONObject): Boolean {
+    val item = DeviceManager.dbManager.getLocalLibraryItem(itemId) ?: return false
+    val book = item.media as? Book ?: return false
+    val md = book.metadata as? BookMetadata ?: return false
+
+    obj.str("title")?.let { md.title = it }
+    obj.str("subtitle")?.let { md.subtitle = it }
+    obj.str("description")?.let { md.description = it }
+    obj.str("publisher")?.let { md.publisher = it }
+    obj.str("publishedYear")?.let { md.publishedYear = it }
+    obj.str("language")?.let { md.language = it }
+    obj.str("asin")?.let { md.asin = it }
+    obj.str("isbn")?.let { md.isbn = it }
+    if (obj.has("explicit") && !obj.isNull("explicit")) {
+      md.explicit = obj.optBoolean("explicit", false)
+    }
+
+    val genres = obj.strList("genres")
+    if (genres.isNotEmpty()) md.genres = genres.toMutableList()
+
+    val narrators = obj.strList("narrators")
+    if (narrators.isNotEmpty()) {
+      md.narrators = narrators.toMutableList()
+      md.narratorName = narrators.joinToString(", ")
+    }
+
+    val authorNames = obj.strList("authors")
+    if (authorNames.isNotEmpty()) {
+      md.authors =
+              authorNames
+                      .map { Author("local_author_${DeviceManager.getBase64Id(it.lowercase())}", it, null) }
+                      .toMutableList()
+      md.authorName = authorNames.joinToString(", ")
+      md.authorNameLF = obj.str("authorNameLF")
+    }
+
+    val seriesJson = obj.optJSONArray("series")
+    if (seriesJson != null && seriesJson.length() > 0) {
+      val seriesList = mutableListOf<SeriesType>()
+      for (i in 0 until seriesJson.length()) {
+        val s = seriesJson.optJSONObject(i) ?: continue
+        val name = s.str("name") ?: continue
+        seriesList.add(
+                SeriesType(
+                        "local_series_${DeviceManager.getBase64Id(name.lowercase())}",
+                        name,
+                        s.str("sequence")
+                )
+        )
+      }
+      if (seriesList.isNotEmpty()) {
+        md.series = seriesList
+        val first = seriesList[0]
+        md.seriesName = if (first.sequence.isNullOrEmpty()) first.name else "${first.name} #${first.sequence}"
+      }
+    }
+
+    obj.str("coverUrl")?.let { downloadCover(item, it) }
+
+    DeviceManager.dbManager.saveLocalLibraryItem(item)
+    return true
+  }
+
+  /** Downloads a cover into app storage and makes it the item's cover. */
+  private fun downloadCover(item: LocalLibraryItem, url: String): Boolean {
+    if (!url.startsWith("https://") && !url.startsWith("http://")) return false
+    var connection: java.net.HttpURLConnection? = null
+    try {
+      connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+      connection.connectTimeout = 15000
+      connection.readTimeout = 20000
+      connection.instanceFollowRedirects = true
+      if (connection.responseCode !in 200..299) return false
+      if (connection.contentType?.startsWith("image/") != true) return false
+
+      val dir = File(ctx.filesDir, "scanned_covers")
+      if (!dir.exists()) dir.mkdirs()
+      // New file name each time so the web view never shows a cached older cover
+      val safeId = item.id.replace(Regex("[^A-Za-z0-9_-]"), "_")
+      val file = File(dir, "${safeId}_${System.currentTimeMillis()}.jpg")
+
+      val maxBytes = 10L * 1024 * 1024
+      var total = 0L
+      val buffer = ByteArray(8192)
+      connection.inputStream.use { input ->
+        file.outputStream().use { output ->
+          while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            total += read
+            if (total > maxBytes) throw java.io.IOException("Cover is larger than 10MB")
+            output.write(buffer, 0, read)
+          }
+        }
+      }
+
+      // Replace the previous cover the app saved (never a cover that lives in the user's folder)
+      val previousUrl = item.coverContentUrl
+      if (previousUrl != null && previousUrl.startsWith("file:")) {
+        item.localFiles.removeAll { it.contentUrl == previousUrl }
+        item.coverAbsolutePath?.let { File(it).delete() }
+      }
+      val savedUrl = Uri.fromFile(file).toString()
+      item.localFiles.add(
+              LocalFile(
+                      DeviceManager.getBase64Id(savedUrl),
+                      file.name,
+                      savedUrl,
+                      file.parent ?: "",
+                      file.absolutePath,
+                      "image/jpeg",
+                      file.length()
+              )
+      )
+      item.coverContentUrl = savedUrl
+      item.coverAbsolutePath = file.absolutePath
+      item.media.coverPath = savedUrl
+      return true
+    } catch (e: Exception) {
+      Log.e(tag, "Failed to download cover $url", e)
+      return false
+    } finally {
+      connection?.disconnect()
+    }
   }
 
   /** One chapter per audio file when a book is split over several files. */
