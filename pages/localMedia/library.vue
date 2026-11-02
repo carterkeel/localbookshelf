@@ -10,7 +10,10 @@
       <button v-for="t in tabs" :key="t.value" class="px-3 py-2 text-sm" :class="tab === t.value ? 'border-b-2 border-success text-fg' : 'text-fg-muted'" @click="tab = t.value">{{ t.text }}</button>
     </div>
 
-    <p v-if="loaded && !books.length" class="text-sm text-fg-muted py-6 text-center">{{ $strings.MessageLocalLibraryEmpty }}</p>
+    <div v-if="loaded && !books.length" class="py-6 text-center">
+      <p class="text-sm text-fg-muted mb-3">{{ $strings.MessageLocalLibraryEmpty }}</p>
+      <ui-btn color="success" small @click="$router.push('/localMedia/folders')">{{ $strings.ButtonAddAudiobookFolder }}</ui-btn>
+    </div>
 
     <template v-else-if="tab === 'series'">
       <div v-for="s in bySeries.series" :key="'s-' + s.name" class="mb-4">

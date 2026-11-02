@@ -1,5 +1,6 @@
 {
   "ButtonAdd": "Add",
+  "ButtonAddAudiobookFolder": "Add Audiobook Folder",
   "ButtonAddNewServer": "Add New Server",
   "ButtonAllow": "Allow",
   "ButtonAuthors": "Authors",
@@ -354,6 +355,7 @@
   "MessageNoNetworkConnection": "No network connection",
   "MessageNoPodcastsFound": "No podcasts found",
   "MessageNoSeries": "No series",
+  "MessageNoServerNeeded": "No server needed: choose a folder of audiobooks on this device.",
   "MessageNoUpdatesWereNecessary": "No updates were necessary",
   "MessageNoUserPlaylists": "You have no playlists",
   "MessageOldServerAuthReLoginRequired": "Authentication has been improved for security in server v2.26.0. All users are required to re-login.",
