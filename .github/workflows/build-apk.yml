@@ -9,6 +9,7 @@ on:
     paths-ignore:
       - 'ios/**'
       - 'readme.md'
+  workflow_dispatch: # lets you start a build manually from the Actions tab
 jobs:
   main:
     runs-on: ubuntu-latest
@@ -29,6 +30,9 @@ jobs:
 
       - name: install dependencies
         run: npm ci --omit=optional
+
+      - name: test local library parsing
+        run: npm run test:local
 
       - name: build Nuxt project
         run: npm run generate

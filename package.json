@@ -8,7 +8,7 @@
     "start": "nuxt --hostname 0.0.0.0 --port 1337",
     "generate": "nuxt generate",
     "sync": "nuxt generate && npx cap sync",
-    "test:local": "node --test \"utils/local/__tests__/*.test.js\"",
+    "test:local": "node --test utils/local/__tests__/folderParsing.test.js",
     "icons-android": "cordova-res android --skip-config --copy",
     "ionic:build": "npm run build",
     "ionic:serve": "npm run dev",
