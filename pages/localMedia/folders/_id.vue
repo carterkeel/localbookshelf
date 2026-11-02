@@ -9,6 +9,14 @@
 
     <p class="text-sm mb-4 text-fg-muted">{{ $strings.LabelMediaType }}: {{ mediaType }}</p>
 
+    <div v-if="canScan" class="mb-4">
+      <ui-btn small color="success" class="w-full" :loading="scanning" :disabled="scanning" @click="scanFolder">{{ scanning ? scanStatusText : $strings.ButtonScanFolder }}</ui-btn>
+      <div v-if="scanning && scanProgress.total" class="w-full h-1 bg-primary mt-2 rounded overflow-hidden">
+        <div class="h-full bg-success" :style="{ width: scanPercent + '%' }" />
+      </div>
+      <p v-if="scanning && scanProgress.title" class="text-xs text-fg-muted mt-1 truncate">{{ scanProgress.title }}</p>
+    </div>
+
     <p class="mb-2 text-base text-fg">{{ $strings.HeaderLocalLibraryItems }} ({{ localLibraryItems.length }})</p>
 
     <div class="w-full media-item-container overflow-y-auto">
@@ -36,11 +44,13 @@
 import { Capacitor } from '@capacitor/core'
 import { Dialog } from '@capacitor/dialog'
 import { AbsFileSystem } from '@/plugins/capacitor'
+import localScan from '@/utils/local/buildScanItems'
 
 export default {
   asyncData({ params, query }) {
     return {
-      folderId: params.id
+      folderId: params.id,
+      autoScan: !!query.scan
     }
   },
   data() {
@@ -48,10 +58,21 @@ export default {
       localLibraryItems: [],
       folder: null,
       removingFolder: false,
-      showDialog: false
+      showDialog: false,
+      scanning: false,
+      scanStatusText: '',
+      scanProgress: { done: 0, total: 0, title: '' }
     }
   },
   computed: {
+    canScan() {
+      // Audiobooks can be indexed from any folder the user selected (not the app's internal storage)
+      return !!this.folder && this.mediaType === 'book' && !this.isInternalStorage
+    },
+    scanPercent() {
+      if (!this.scanProgress.total) return 0
+      return Math.min(100, Math.round((this.scanProgress.done / this.scanProgress.total) * 100))
+    },
     folderName() {
       return this.folder?.name || null
     },
@@ -72,10 +93,54 @@ export default {
     }
   },
   methods: {
+    /**
+     * Index the audiobooks in this folder on the device (no server needed):
+     * the native layer lists the files, the same folder-name logic as the server groups them into
+     * books and parses author/series/title, then the native layer reads durations, tags and covers.
+     */
+    async scanFolder() {
+      if (this.scanning || !this.canScan) return
+      this.scanning = true
+      this.scanProgress = { done: 0, total: 0, title: '' }
+      this.scanStatusText = this.$strings.MessageLocalLibraryListing
+      let progressListener = null
+      try {
+        const listing = await AbsFileSystem.listFolderFiles({ folderId: this.folderId })
+        const items = localScan.buildScanItems(listing)
+        if (!items.length) {
+          // Never touch the library when nothing was found: an unmounted SD card or a revoked
+          // permission also looks like an empty folder.
+          this.$toast.info(this.$strings.MessageLocalLibraryScanNoBooks)
+          return
+        }
+
+        progressListener = await AbsFileSystem.addListener('onScanProgress', (data) => {
+          this.scanProgress = data
+          this.scanStatusText = this.$getString('MessageLocalLibraryScanning', [Math.min(data.done + 1, data.total), data.total])
+        })
+        // Books that were scanned before but are gone from storage are only removed from the library
+        // when every directory was read successfully.
+        const res = await AbsFileSystem.scanLocalBooks({ folderId: this.folderId, items, removeMissing: !listing.errorCount })
+        this.$toast.success(this.$getString('MessageLocalLibraryScanComplete', [res.added, res.updated, res.removed]))
+        if (res.failed?.length) {
+          this.$toast.warning(this.$getString('MessageLocalLibraryScanSkipped', [res.failed.length]))
+        }
+        await this.init()
+      } catch (error) {
+        console.error('Failed to scan folder', error)
+        this.$toast.error(`${this.$strings.MessageLocalLibraryScanFailed}: ${error?.message || error}`)
+      } finally {
+        if (progressListener) progressListener.remove()
+        this.scanning = false
+      }
+    },
     getLocalLibraryItemSubText(localLibraryItem) {
       if (!localLibraryItem) return ''
       if (localLibraryItem.mediaType == 'book') {
         const txts = []
+        if (localLibraryItem.media.metadata.authorName) {
+          txts.push(localLibraryItem.media.metadata.authorName)
+        }
         if (localLibraryItem.media.ebookFile) {
           txts.push(`${localLibraryItem.media.ebookFile.ebookFormat} ${this.$strings.LabelEbook}`)
         }
@@ -140,9 +205,12 @@ export default {
       }
     }
   },
-  mounted() {
+  async mounted() {
     this.$eventBus.$on('new-local-library-item', this.newLocalLibraryItem)
-    this.init()
+    await this.init()
+    if (this.autoScan) {
+      this.scanFolder()
+    }
   },
   beforeDestroy() {
     this.$eventBus.$off('new-local-library-item', this.newLocalLibraryItem)

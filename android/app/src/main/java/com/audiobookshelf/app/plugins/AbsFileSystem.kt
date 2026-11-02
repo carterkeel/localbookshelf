@@ -241,6 +241,7 @@ class AbsFileSystem : Plugin() {
         val res = JSObject()
         res.put("files", filesArray)
         res.put("dirs", dirsObj)
+        res.put("errorCount", listing.errorCount)
         call.resolve(res)
       } catch (e: Exception) {
         Log.e(tag, "listFolderFiles failed", e)
@@ -257,6 +258,7 @@ class AbsFileSystem : Plugin() {
   fun scanLocalBooks(call: PluginCall) {
     val folderId = call.data.getString("folderId", "").toString()
     val items = call.getArray("items")
+    val removeMissing = call.getBoolean("removeMissing", false) == true
     val folder = DeviceManager.dbManager.getLocalFolder(folderId)
     if (folder == null || items == null) {
       call.reject("Folder or items missing")
@@ -266,7 +268,7 @@ class AbsFileSystem : Plugin() {
     GlobalScope.launch(Dispatchers.IO) {
       try {
         val result =
-                LocalBookScanner(context).scanItems(folder, items) { done, total, title ->
+                LocalBookScanner(context).scanItems(folder, items, removeMissing) { done, total, title ->
                   if (done == total || done % 3 == 0) {
                     val progress = JSObject()
                     progress.put("done", done)

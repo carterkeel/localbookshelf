@@ -91,6 +91,10 @@ export default {
         return
       } else {
         this.$toast.success('Folder permission success')
+        if (this.newFolderMediaType === 'book') {
+          // Go straight to the folder and index its audiobooks
+          this.$router.push(`/localMedia/folders/${encodeURIComponent(folderObj.id)}?scan=1`)
+        }
       }
     },
     async showLocalFolderMoreInfo() {

@@ -42,7 +42,12 @@ class LocalBookScanner(private val ctx: Context) {
           val mimeType: String?
   )
 
-  data class FolderListing(val files: List<ListedFile>, val dirs: Map<String, String>)
+  /** [errorCount] is the number of directories that could not be read (permission lost, etc.). */
+  data class FolderListing(
+          val files: List<ListedFile>,
+          val dirs: Map<String, String>,
+          val errorCount: Int
+  )
 
   data class ScanResult(
           var added: Int = 0,
@@ -108,6 +113,7 @@ class LocalBookScanner(private val ctx: Context) {
 
     val files = mutableListOf<ListedFile>()
     val dirs = mutableMapOf<String, String>()
+    var errorCount = 0
     val stack = ArrayDeque<Triple<String, String, Int>>()
     stack.addLast(Triple(rootDocId, "", 0))
 
@@ -123,7 +129,12 @@ class LocalBookScanner(private val ctx: Context) {
       val (parentDocId, relDir, depth) = stack.removeLast()
       val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
       try {
-        ctx.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+        val queryCursor = ctx.contentResolver.query(childrenUri, projection, null, null, null)
+        if (queryCursor == null) {
+          errorCount++
+          continue
+        }
+        queryCursor.use { cursor ->
           while (cursor.moveToNext()) {
             val docId = cursor.getString(0) ?: continue
             val name = cursor.getString(1) ?: continue
@@ -144,10 +155,11 @@ class LocalBookScanner(private val ctx: Context) {
           }
         }
       } catch (e: Exception) {
+        errorCount++
         Log.e(tag, "Failed to list directory '$relDir'", e)
       }
     }
-    return FolderListing(files, dirs)
+    return FolderListing(files, dirs, errorCount)
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -157,6 +169,7 @@ class LocalBookScanner(private val ctx: Context) {
   fun scanItems(
           folder: LocalFolder,
           itemsJson: JSONArray,
+          removeMissing: Boolean,
           onProgress: (done: Int, total: Int, title: String) -> Unit
   ): ScanResult {
     val result = ScanResult()
@@ -195,12 +208,15 @@ class LocalBookScanner(private val ctx: Context) {
     }
     onProgress(total, total, "")
 
-    // Remove previously scanned items in this folder that no longer exist on disk.
-    // Items downloaded from a server (isScanned == false) are never touched here.
-    DeviceManager.dbManager.getLocalLibraryItemsInFolder(folder.id).forEach { lli ->
-      if (lli.isScanned && !keepIds.contains(lli.id)) {
-        DeviceManager.dbManager.removeLocalLibraryItem(lli.id)
-        result.removed++
+    // Remove previously scanned items in this folder that no longer exist on disk, but only when
+    // the caller knows the whole folder was read. Items downloaded from a server
+    // (isScanned == false) are never touched here.
+    if (removeMissing) {
+      DeviceManager.dbManager.getLocalLibraryItemsInFolder(folder.id).forEach { lli ->
+        if (lli.isScanned && !keepIds.contains(lli.id)) {
+          DeviceManager.dbManager.removeLocalLibraryItem(lli.id)
+          result.removed++
+        }
       }
     }
     return result
