@@ -26,13 +26,14 @@
             <p class="pl-2 text-error text-sm">{{ $strings.MessageAudiobookshelfServerNotConnected }}</p>
           </div>
         </div>
-        <div v-if="!user" class="flex flex-col items-center mb-4">
-          <p class="text-sm text-fg-muted text-center mb-2 px-4">{{ $strings.MessageNoServerNeeded }}</p>
-          <ui-btn color="success" @click="$router.push('/localMedia/folders')" class="w-56">{{ $strings.ButtonAddAudiobookFolder }}</ui-btn>
-          <ui-btn small @click="$router.push('/localMedia/library')" class="w-56 mt-2">{{ $strings.HeaderLocalLibrary }}</ui-btn>
-        </div>
         <div class="flex justify-center">
           <ui-btn v-if="!user" small @click="$router.push('/connect')" class="w-32">{{ $strings.ButtonConnect }}</ui-btn>
+        </div>
+        <div v-if="!user" class="flex flex-col items-center mt-4">
+          <p class="text-sm text-fg-muted mb-2">{{ $strings.MessageOr }}</p>
+          <ui-btn color="success" small @click="$router.push('/localMedia/folders?add=book')" class="w-44">{{ $strings.ButtonAddLocalBooks }}</ui-btn>
+          <p class="text-xs text-fg-muted text-center mt-2 px-4">{{ $strings.MessageNoServerNeeded }}</p>
+          <ui-btn small @click="$router.push('/localMedia/library')" class="w-44 mt-3">{{ $strings.HeaderLocalLibrary }}</ui-btn>
         </div>
       </div>
     </div>

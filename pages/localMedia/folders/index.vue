@@ -116,8 +116,15 @@ export default {
       this.localLibraryItems = await this.$db.getLocalLibraryItems()
     }
   },
-  mounted() {
-    this.init()
+  async mounted() {
+    await this.init()
+    // Arrived from "Add Local Books": go straight to the folder picker for audiobooks
+    if (this.$route.query.add === 'book') {
+      this.newFolderMediaType = 'book'
+      this.overrideFolderRestriction = true
+      this.$router.replace({ query: {} })
+      this.selectFolder()
+    }
   }
 }
 </script>
