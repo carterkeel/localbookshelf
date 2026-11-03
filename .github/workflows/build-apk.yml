@@ -2,6 +2,8 @@ name: Build APK
 
 on:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*' # v0.1.0 etc. publish a versioned release
     paths-ignore:
