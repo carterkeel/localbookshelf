@@ -13,6 +13,8 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # lets the release step below publish the APK
     steps:
       - name: checkout sources
         uses: actions/checkout@v3
@@ -55,3 +57,15 @@ jobs:
         with:
           name: audiobookshelf-apk
           path: android/app/build/outputs/apk/debug/*.apk
+
+      # Publish the newest build from main as a normal download on the repo's Releases page
+      - name: publish latest release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/audiobookshelf-*.apk Localbookshelf.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest Localbookshelf.apk --target "$GITHUB_SHA" --prerelease \
+            --title "Localbookshelf (latest build)" \
+            --notes "Automatic build of commit ${GITHUB_SHA::7} from main. Download Localbookshelf.apk and install it on your Android phone."
