@@ -91,6 +91,26 @@ async function findBestMatch(query, providers, options = {}) {
   return best && best.score >= minScore ? best : null
 }
 
+/**
+ * Provider descriptions (Audible, Google Books) are HTML from a third party and the item page shows
+ * descriptions as HTML. Store plain text only: tags are removed (line breaks kept) and only harmless
+ * entities are decoded, so text like "&lt;script&gt;" can never turn back into a tag.
+ */
+function descriptionToText(value) {
+  if (value === undefined || value === null) return value
+  return String(value)
+    .replace(/<\s*(?:script|style)\b[\s\S]*?<\s*\/\s*(?:script|style)\s*>/gi, '')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/\s*(?:p|div|li|h[1-6])\s*>/gi, '\n\n')
+    .replace(/<[^>]*>?/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&quot;/gi, '"')
+    .replace(/&(?:apos|#39);/gi, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function hasValue(value) {
   if (value === undefined || value === null) return false
   if (typeof value === 'string') return value.trim() !== ''
@@ -124,7 +144,7 @@ function buildMetadataUpdate(match, current = {}, options = {}) {
 
   if (override) fill('title', match.title, null)
   fill('subtitle', match.subtitle, current.subtitle)
-  fill('description', match.description, current.description)
+  fill('description', descriptionToText(match.description), current.description)
   fill('publisher', match.publisher, current.publisher)
   fill('publishedYear', match.publishedYear, current.publishedYear)
   fill('language', match.language, current.language)
@@ -149,5 +169,4 @@ module.exports = {
   scoreResult,
   createProviders,
   findBestMatch,
-  buildMetadataUpdate
-}
+  buildMetadataUpdate, descriptionToText }

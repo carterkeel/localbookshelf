@@ -135,7 +135,7 @@ test('buildMetadataUpdate only fills missing fields and never touches folder-der
   assert.equal(update.authors, undefined)
   assert.equal(update.narrators, undefined) // already known
   assert.equal(update.series, undefined) // already known (from the folder structure)
-  assert.equal(update.description, '<p>Roshar is a world of stone and storms.</p>')
+  assert.equal(update.description, 'Roshar is a world of stone and storms.') // provider HTML is stored as plain text
   assert.equal(update.publisher, 'Macmillan Audio')
   assert.equal(update.publishedYear, '2010')
   assert.equal(update.asin, 'B003ZWFO7E')
@@ -183,4 +183,24 @@ test('http adapter rejects on HTTP errors like axios and parses JSON strings', a
   assert.deepEqual((await ok.get('https://x')).data, { a: 1 })
   const bad = createHttp({ get: async () => ({ status: 404, data: {} }) })
   await assert.rejects(() => bad.get('https://x'), /404/)
+})
+
+test('descriptionToText: HTML from providers is reduced to plain text', () => {
+  const { descriptionToText } = require('../matcher')
+  assert.equal(descriptionToText('<p>Hello <b>world</b></p><p>Second</p>'), 'Hello world\n\nSecond')
+  assert.equal(descriptionToText('Line one<br/>Line two'), 'Line one\nLine two')
+  assert.equal(descriptionToText('Safe<script>alert(1)</script> text'), 'Safe text')
+  assert.equal(descriptionToText('<img src=x onerror=alert(1)>Caption'), 'Caption')
+  assert.equal(descriptionToText('<a href="javascript:alert(1)">click</a>'), 'click')
+  assert.equal(descriptionToText('broken <b onmouseover=alert(1)'), 'broken')
+  // entities that would form a tag stay encoded
+  assert.equal(descriptionToText('&lt;script&gt;alert(1)&lt;/script&gt;'), '&lt;script&gt;alert(1)&lt;/script&gt;')
+  assert.equal(descriptionToText('Tom &amp; Jerry &quot;quoted&quot;'), 'Tom &amp; Jerry "quoted"')
+  assert.equal(descriptionToText(null), null)
+})
+
+test('buildMetadataUpdate stores descriptions as plain text', () => {
+  const { buildMetadataUpdate } = require('../matcher')
+  const update = buildMetadataUpdate({ title: 'X', description: '<p>Spice<script>x()</script></p>' }, {})
+  assert.equal(update.description, 'Spice')
 })

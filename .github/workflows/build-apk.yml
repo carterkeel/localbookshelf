@@ -2,6 +2,8 @@ name: Build APK
 
 on:
   push:
+    tags:
+      - 'v*' # v0.1.0 etc. publish a versioned release
     paths-ignore:
       - 'ios/**'
       - 'readme.md'
@@ -14,7 +16,7 @@ jobs:
   main:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # lets the release step below publish the APK
+      contents: read
     steps:
       - name: checkout sources
         uses: actions/checkout@v4
@@ -58,14 +60,37 @@ jobs:
           name: audiobookshelf-apk
           path: android/app/build/outputs/apk/debug/*.apk
 
-      # Publish the newest build from main as a normal download on the repo's Releases page
-      - name: publish latest release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+  # Publishing is a separate job so the build (npm install, Gradle) never runs with a write token.
+  release:
+    needs: main
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: audiobookshelf-apk
+
+      - name: publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          cp android/app/build/outputs/apk/debug/audiobookshelf-*.apk Localbookshelf.apk
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest Localbookshelf.apk --target "$GITHUB_SHA" --prerelease \
-            --title "Localbookshelf (latest build)" \
-            --notes "Automatic build of commit ${GITHUB_SHA::7} from main. Download Localbookshelf.apk and install it on your Android phone."
+          cp audiobookshelf-*.apk Localbookshelf.apk
+          if [ "$REF_TYPE" = "tag" ]; then
+            # A versioned release, e.g. v0.1.0
+            gh release delete "$REF_NAME" --repo "$REPO" --yes || true
+            gh release create "$REF_NAME" Localbookshelf.apk --repo "$REPO" --verify-tag --latest \
+              --title "Localbookshelf $REF_NAME" \
+              --notes "Install Localbookshelf.apk on an Android phone (allow installs from your browser or file manager when asked). This build is signed with a temporary debug key, so to install a newer version you may need to uninstall this one first."
+          else
+            # Rolling build of main
+            gh release delete latest --repo "$REPO" --yes --cleanup-tag || true
+            gh release create latest Localbookshelf.apk --repo "$REPO" --target "$GITHUB_SHA" --prerelease \
+              --title "Localbookshelf (latest build)" \
+              --notes "Automatic build of commit ${GITHUB_SHA::7} from main. Install Localbookshelf.apk on an Android phone."
+          fi

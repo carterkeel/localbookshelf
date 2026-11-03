@@ -529,8 +529,10 @@ class LocalBookScanner(private val ctx: Context) {
 
   /** Downloads a cover into app storage and makes it the item's cover. */
   private fun downloadCover(item: LocalLibraryItem, url: String): Boolean {
-    if (!url.startsWith("https://") && !url.startsWith("http://")) return false
+    // Covers come from online providers over https only
+    if (!url.startsWith("https://")) return false
     var connection: java.net.HttpURLConnection? = null
+    var partialFile: File? = null // removed again if the download fails half way
     try {
       connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
       connection.connectTimeout = 15000
@@ -544,6 +546,7 @@ class LocalBookScanner(private val ctx: Context) {
       // New file name each time so the web view never shows a cached older cover
       val safeId = item.id.replace(Regex("[^A-Za-z0-9_-]"), "_")
       val file = File(dir, "${safeId}_${System.currentTimeMillis()}.jpg")
+      partialFile = file
 
       val maxBytes = 10L * 1024 * 1024
       var total = 0L
@@ -581,9 +584,11 @@ class LocalBookScanner(private val ctx: Context) {
       item.coverContentUrl = savedUrl
       item.coverAbsolutePath = file.absolutePath
       item.media.coverPath = savedUrl
+      partialFile = null
       return true
     } catch (e: Exception) {
-      Log.e(tag, "Failed to download cover $url", e)
+      Log.e(tag, "Failed to download cover", e)
+      partialFile?.delete()
       return false
     } finally {
       connection?.disconnect()

@@ -148,9 +148,7 @@ export default {
       this.folder = folder
 
       var items = (await this.$db.getLocalLibraryItemsInFolder(this.folderId)) || []
-      console.log('Init folder', this.folderId, items)
       this.localLibraryItems = items.map((lmi) => {
-        console.log('Local library item', JSON.stringify(lmi))
         return {
           ...lmi,
           coverPathSrc: lmi.coverContentUrl ? Capacitor.convertFileSrc(lmi.coverContentUrl) : null

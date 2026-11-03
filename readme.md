@@ -14,7 +14,7 @@ It is a **fork of the [Audiobookshelf mobile app](https://github.com/advplyr/aud
 4. **Organizing.** Open **Local Library** from the home screen or side drawer to browse your books grouped by **Series** (in reading order), **Authors**, or as one **All** list.
 5. **Listening.** Tap a book to play it. Progress is saved on the device.
 
-Metadata lookup needs an internet connection. Everything else works offline.
+Metadata lookup needs an internet connection. It sends each book's title and author to Audnexus/Audible and Google Books to find a match, and downloads the cover from the result. Nothing else leaves your phone, and everything else works offline.
 
 ### Current limitations
 
@@ -25,7 +25,7 @@ Metadata lookup needs an internet connection. Everything else works offline.
 
 ## Building
 
-GitHub Actions builds an APK on every push (the **Build APK** workflow). Download the `audiobookshelf-apk` artifact from a run and install it. To build locally, see the setup sections below.
+GitHub Actions builds the app on every push and publishes it on the repo's **Releases** page: a version such as `v0.1.0` for each release, and a rolling \"latest build\" of `main`. Download `Localbookshelf.apk` and install it on your Android phone. The APK is signed with a temporary debug key, so installing a newer version over an older one can fail until the old one is uninstalled (your audio files are not touched; scan again afterwards). To build locally, see the setup sections below.
 
 ## Credits and license
 
