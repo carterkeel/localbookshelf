@@ -53,7 +53,10 @@ class LocalBookScanner(private val ctx: Context) {
           var added: Int = 0,
           var updated: Int = 0,
           var removed: Int = 0,
-          val failed: MutableList<String> = mutableListOf()
+          val failed: MutableList<String> = mutableListOf(),
+          // Album tag of each book (by item id). Books of one series often share it, which the web
+          // layer uses to group them into a series.
+          val albums: MutableMap<String, String> = mutableMapOf()
   )
 
   private data class ScanFile(
@@ -166,6 +169,9 @@ class LocalBookScanner(private val ctx: Context) {
   // Step 2: build + save library items
   // ---------------------------------------------------------------------------------------------
 
+  // Album tag of the book built last (set by buildAndSave, read right after by scanItems)
+  private var lastAlbum: String? = null
+
   fun scanItems(
           folder: LocalFolder,
           itemsJson: JSONArray,
@@ -193,12 +199,15 @@ class LocalBookScanner(private val ctx: Context) {
       keepIds.add(itemId)
       try {
         val existing = DeviceManager.dbManager.getLocalLibraryItem(itemId)
+        lastAlbum = null
         val saved = buildAndSave(folder, itemId, dto, existing)
         if (!saved) {
           result.failed.add(dto.relPath)
         } else if (existing != null) {
+          lastAlbum?.takeIf { it.isNotBlank() }?.let { result.albums[itemId] = it.trim() }
           result.updated++
         } else {
+          lastAlbum?.takeIf { it.isNotBlank() }?.let { result.albums[itemId] = it.trim() }
           result.added++
         }
       } catch (e: Exception) {
@@ -282,6 +291,7 @@ class LocalBookScanner(private val ctx: Context) {
       index++
     }
     if (tracks.isEmpty()) return false
+    lastAlbum = firstProbe?.album
 
     // A cover the app saved earlier (embedded in the audio, or downloaded from a metadata match)
     val existingInternalCover: LocalFile? =

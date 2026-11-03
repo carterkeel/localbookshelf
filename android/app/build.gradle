@@ -36,8 +36,8 @@ android {
     applicationId "com.audiobookshelf.app"
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 121
-    versionName "0.14.2-beta"
+    versionCode 122
+    versionName "0.1.0"
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     manifestPlaceholders = [
       "appAuthRedirectScheme": "com.audiobookshelf.app"
@@ -51,7 +51,6 @@ android {
   buildTypes {
     debug {
       applicationIdSuffix ".debug"
-      versionNameSuffix "-debug"
       minifyEnabled false
       proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
     }

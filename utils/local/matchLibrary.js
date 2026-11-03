@@ -3,6 +3,7 @@
 // a network or a device.
 const { findBestMatch, buildMetadataUpdate } = require('./matcher')
 const { nameToLastFirst } = require('./parsers/parseNameString')
+const { cleanTitleForSearch } = require('./seriesInference')
 
 /** A scanned book that has no description yet has not been matched. */
 function needsMatch(item) {
@@ -52,7 +53,7 @@ async function matchLocalItems(items, { providers, apply, onProgress, isCancelle
       const item = items[next++]
       const md = item.media.metadata
       try {
-        const best = await findBestMatch({ title: md.title, author: md.authorName || undefined, asin: md.asin || undefined }, providers)
+        const best = await findBestMatch({ title: cleanTitleForSearch(md.title), author: md.authorName || undefined, asin: md.asin || undefined }, providers)
         if (!best) {
           result.unmatched++
         } else {

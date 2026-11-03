@@ -23,7 +23,7 @@
           <p class="text-xs text-fg-muted" style="word-break: break-word">{{ serverConnectionConfig.address }} (v{{ serverSettings.version }})</p>
         </div>
         <div class="flex items-center">
-          <p class="text-xs">{{ $config.version }}</p>
+          <p class="text-xs">Localbookshelf v{{ $config.version }}</p>
           <div class="flex-grow" />
           <div v-if="user" class="flex items-center" @click="disconnect">
             <p class="text-xs pr-2">{{ $strings.ButtonDisconnect }}</p>

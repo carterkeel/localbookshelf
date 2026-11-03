@@ -15,11 +15,7 @@ export default {
   },
   computed: {
     hideToolbar() {
-      return this.isHome || this.isLatest || this.isPodcastSearch || this.isStandalone
-    },
-    isStandalone() {
-      // The server's sort/filter toolbar means nothing for the on-device library
-      return !this.$store.state.user.serverConnectionConfig
+      return this.isHome || this.isLatest || this.isPodcastSearch
     },
     isHome() {
       return this.$route.name === 'bookshelf'

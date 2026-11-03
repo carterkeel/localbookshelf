@@ -2,7 +2,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { organizeBySeries, organizeByAuthor } = require('../organize')
+const { organizeBySeries, organizeByAuthor, buildSeriesEntities, booksInSeries, buildAuthorEntities, booksByAuthor, sortBooks } = require('../organize')
 
 function book(title, { authors = [], authorName, series } = {}) {
   return {
@@ -88,4 +88,35 @@ test('falls back to authorName when there is no authors list, and handles empty 
   assert.equal(authors[0].name, 'Jane Doe')
   assert.deepEqual(organizeByAuthor([]), [])
   assert.deepEqual(organizeBySeries([]), { series: [], standalone: [] })
+})
+
+test('series entities: id, name and ordered books, and lookup by id', () => {
+  const items = [book('B2', { series: ['Saga', '2'] }), book('B1', { series: ['Saga', '1'] }), book('Solo')]
+  items[0].media.metadata.series[0].id = 'local_series_saga'
+  items[1].media.metadata.series[0].id = 'local_series_saga'
+  const entities = buildSeriesEntities(items)
+  assert.equal(entities.length, 1)
+  assert.equal(entities[0].id, 'local_series_saga')
+  assert.deepEqual(entities[0].books.map((b) => b.media.metadata.title), ['B1', 'B2'])
+  assert.deepEqual(booksInSeries(items, 'local_series_saga').map((b) => b.media.metadata.title), ['B1', 'B2'])
+  assert.deepEqual(booksInSeries(items, 'nope'), [])
+})
+
+test('series entities: id falls back to the name when the book has no series id', () => {
+  const entities = buildSeriesEntities([book('B1', { series: ['The Saga', '1'] })])
+  assert.equal(entities[0].id, 'local_series_the%20saga')
+})
+
+test('author entities and lookup: counts, order, case-insensitive, unknown author excluded', () => {
+  const authors = buildAuthorEntities(library)
+  assert.deepEqual(authors.map((a) => a.name), ['Neil Gaiman', 'Frank Herbert', 'Terry Pratchett', 'Brandon Sanderson'])
+  assert.equal(authors.find((a) => a.name === 'Brandon Sanderson').numBooks, 4)
+  assert.deepEqual(booksByAuthor(library, 'frank herbert').map((b) => b.media.metadata.title), ['Dune'])
+  assert.deepEqual(booksByAuthor(library, 'Nobody'), [])
+})
+
+test('sortBooks sorts by title without changing the input', () => {
+  const input = [book('b'), book('A'), book('c')]
+  assert.deepEqual(sortBooks(input).map((b) => b.media.metadata.title), ['A', 'b', 'c'])
+  assert.equal(input[0].media.metadata.title, 'b')
 })

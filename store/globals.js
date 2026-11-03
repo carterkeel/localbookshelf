@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core'
+
 export const state = () => ({
   isModalOpen: false,
   itemDownloads: [],
@@ -31,6 +33,8 @@ export const getters = {
     (state, getters, rootState, rootGetters) =>
     (libraryItem, placeholder, raw = false) => {
       if (!libraryItem) return placeholder
+      // Books indexed on this device keep their cover on the device
+      if (libraryItem.isLocal) return libraryItem.coverContentUrl ? Capacitor.convertFileSrc(libraryItem.coverContentUrl) : placeholder
       const media = libraryItem.media
       if (!media || !media.coverPath || media.coverPath === placeholder) return placeholder
 

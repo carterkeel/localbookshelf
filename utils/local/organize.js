@@ -109,4 +109,44 @@ function organizeByAuthor(items) {
   return authors
 }
 
-module.exports = { organizeBySeries, organizeByAuthor }
+// ---- Helpers for the Library / Series / Authors tabs (the same shapes the server's endpoints return) ----
+
+function seriesIdOf(series) {
+  return series.id || `local_series_${encodeURIComponent(String(series.name).trim().toLowerCase())}`
+}
+
+/** All books sorted by title. */
+function sortBooks(items) {
+  return [...items].sort((a, b) => compareText(titleOf(a), titleOf(b)))
+}
+
+/** Series as `{ id, name, books }`, sorted by name, books in reading order. */
+function buildSeriesEntities(items) {
+  return organizeBySeries(items).series.map((s) => ({
+    id: seriesIdOf(primarySeries(s.books[0])),
+    name: s.name,
+    books: s.books
+  }))
+}
+
+/** The books of one series (by id), in reading order. */
+function booksInSeries(items, seriesId) {
+  const found = buildSeriesEntities(items).find((s) => s.id === seriesId)
+  return found ? found.books : []
+}
+
+/** Authors as `{ id, name, numBooks }`, sorted by last name. Books without an author are left out. */
+function buildAuthorEntities(items) {
+  return organizeByAuthor(items)
+    .filter((a) => a.name)
+    .map((a) => ({ id: a.name, name: a.name, numBooks: a.books.length }))
+}
+
+/** The books of one author (matched by name, ignoring case). */
+function booksByAuthor(items, authorName) {
+  const wanted = String(authorName || '').trim().toLowerCase()
+  const found = organizeByAuthor(items).find((a) => a.name && a.name.toLowerCase() === wanted)
+  return found ? found.books : []
+}
+
+module.exports = { organizeBySeries, organizeByAuthor, sortBooks, buildSeriesEntities, booksInSeries, buildAuthorEntities, booksByAuthor }

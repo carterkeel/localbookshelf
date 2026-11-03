@@ -1,6 +1,5 @@
 <template>
-  <local-library-view v-if="isStandalone" mode="authors" />
-  <div v-else>
+  <div>
     <div id="bookshelf" class="w-full h-full p-4 overflow-y-auto">
       <div class="flex flex-wrap justify-center">
         <template v-for="author in authors">
@@ -12,6 +11,8 @@
 </template>
 
 <script>
+import organize from '@/utils/local/organize'
+
 export default {
   data() {
     return {
@@ -22,7 +23,7 @@ export default {
     }
   },
   computed: {
-    // No server connected: show the authors of the books indexed on this device
+    // No server connected: the authors come from the books indexed on this device
     isStandalone() {
       return !this.$store.state.user.serverConnectionConfig
     },
@@ -35,8 +36,14 @@ export default {
   },
   methods: {
     async init() {
-      if (this.isStandalone) return
       this.cardWidth = (window.innerWidth - 64) / 2
+      if (this.isStandalone) {
+        const items = ((await this.$db.getLocalLibraryItems('book')) || []).filter((i) => i.media?.metadata)
+        this.authors = organize.buildAuthorEntities(items)
+        this.$eventBus.$emit('bookshelf-total-entities', this.authors.length)
+        this.loading = false
+        return
+      }
       if (!this.currentLibraryId) {
         return
       }

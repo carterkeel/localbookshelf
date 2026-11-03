@@ -284,6 +284,9 @@ class AbsFileSystem : Plugin() {
         val failed = JSArray()
         result.failed.forEach { failed.put(it) }
         res.put("failed", failed)
+        val albums = JSObject()
+        result.albums.forEach { (id, album) -> albums.put(id, album) }
+        res.put("albums", albums)
         call.resolve(res)
       } catch (e: Exception) {
         Log.e(tag, "scanLocalBooks failed", e)

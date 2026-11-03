@@ -6,6 +6,7 @@ import localScan from '@/utils/local/buildScanItems'
 import localMatch from '@/utils/local/matchLibrary'
 import localMatcher from '@/utils/local/matcher'
 import localHttp from '@/utils/local/http'
+import seriesInference from '@/utils/local/seriesInference'
 
 export default {
   data() {
@@ -52,6 +53,7 @@ export default {
         })
 
         const totals = { added: 0, updated: 0, removed: 0, failed: 0 }
+        const albums = {} // album tag of every book scanned, used to group books into series
         let foundBooks = false
         for (const folderId of folderIds) {
           this.scanStatusText = this.$strings.MessageLocalLibraryListing
@@ -64,6 +66,7 @@ export default {
           // Books that were scanned before but are gone from storage are only removed from the library
           // when every directory was read successfully.
           const res = await AbsFileSystem.scanLocalBooks({ folderId, items, removeMissing: !listing.errorCount })
+          Object.assign(albums, res.albums || {})
           totals.added += res.added || 0
           totals.updated += res.updated || 0
           totals.removed += res.removed || 0
@@ -83,12 +86,40 @@ export default {
           const books = ((await this.$db.getLocalLibraryItems('book')) || []).filter(localMatch.needsMatch)
           await this.fetchMetadataFor(books)
         }
+        // Books the online lookup did not place in a series: group the ones that share an album tag
+        await this.groupBooksIntoSeries(albums)
       } catch (error) {
         console.error('Failed to scan folders', error)
         this.$toast.error(`${this.$strings.MessageLocalLibraryScanFailed}: ${error?.message || error}`)
       } finally {
         if (progressListener) progressListener.remove()
         this.scanning = false
+      }
+    },
+
+    /**
+     * Put scanned books that still have no series into one when their audio files share an album tag
+     * (and strip "Vol 1 -" style prefixes from their titles). Online matches and folder names win.
+     */
+    async groupBooksIntoSeries(albums) {
+      try {
+        const items = ((await this.$db.getLocalLibraryItems('book')) || []).filter((i) => i.isScanned && i.media?.metadata)
+        const updates = seriesInference.inferSeriesFromAlbums(items, albums)
+        let grouped = 0
+        for (const { id, ...metadata } of updates) {
+          try {
+            await AbsFileSystem.applyLocalItemMetadata({ id, metadata })
+            grouped++
+          } catch (error) {
+            console.error('Failed to set series', id, error)
+          }
+        }
+        if (grouped) {
+          this.$toast.success(this.$getString('MessageLocalLibrarySeriesGrouped', [grouped]))
+          if (this.afterLocalScan) await this.afterLocalScan()
+        }
+      } catch (error) {
+        console.error('Failed to group books into series', error)
       }
     },
 

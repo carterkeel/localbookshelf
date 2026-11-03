@@ -1,19 +1,12 @@
 <template>
-  <local-library-view v-if="isStandalone" mode="books" />
-  <bookshelf-lazy-bookshelf v-else page="books" />
+  <bookshelf-lazy-bookshelf page="books" />
 </template>
 
 <script>
 export default {
-  computed: {
-    // No server connected: show the books indexed on this device
-    isStandalone() {
-      return !this.$store.state.user.serverConnectionConfig
-    }
-  },
   async asyncData({ store, params, query }) {
-    // Set filter by
-    if (query.filter) {
+    // Set filter by (server libraries only; on-device books are filtered by the page itself)
+    if (query.filter && store.state.user.serverConnectionConfig) {
       await store.dispatch('user/updateUserSettings', { mobileFilterBy: query.filter })
     }
   }

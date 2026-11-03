@@ -91,3 +91,13 @@ test('can be cancelled part-way', async () => {
   })
   assert.deepEqual(seen, ['1'])
 })
+
+test('searches without a "Vol 1 -" prefix so numbered titles still match', async () => {
+  const applied = []
+  const res = await matchLocalItems([item('1', 'Vol 1 - Dune', { author: 'Frank Herbert' })], {
+    providers: [fakeProvider([{ title: 'Dune', author: 'Frank Herbert', description: 'Spice.' }])],
+    apply: async (id, metadata) => applied.push(metadata)
+  })
+  assert.equal(res.matched, 1)
+  assert.equal(applied[0].description, 'Spice.')
+})

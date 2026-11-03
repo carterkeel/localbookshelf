@@ -17,6 +17,7 @@
 
 <script>
 import bookshelfCardsHelpers from '@/mixins/bookshelfCardsHelpers'
+import organize from '@/utils/local/organize'
 
 export default {
   props: {
@@ -59,6 +60,10 @@ export default {
   computed: {
     user() {
       return this.$store.state.user.user
+    },
+    // No server connected: show the books indexed on this device instead of asking a server
+    isLocalMode() {
+      return !this.$store.state.user.serverConnectionConfig
     },
     isBookEntity() {
       return this.entityName === 'books' || this.entityName === 'series-books'
@@ -217,6 +222,34 @@ export default {
         }
       }
     },
+    /**
+     * Local mode: all entities come from the device in one go (no paging).
+     * Library = books, Series = series cards, series-books = the books of one series.
+     */
+    async loadLocalEntities() {
+      this.isFetchingEntities = true
+      const items = ((await this.$db.getLocalLibraryItems('book')) || []).filter((i) => i.media?.metadata)
+      this.isFetchingEntities = false
+      this.localLibraryItems = items
+
+      let entities = []
+      if (this.page === 'series') {
+        entities = organize.buildSeriesEntities(items)
+      } else if (this.page === 'series-books') {
+        entities = organize.booksInSeries(items, this.seriesId)
+      } else {
+        // The author cards link here with ?filter=authors.<encoded name>
+        const filter = this.$route.query.filter || ''
+        const authorName = filter.startsWith('authors.') ? this.$decode(filter.slice('authors.'.length)) : null
+        entities = authorName ? organize.booksByAuthor(items, authorName) : organize.sortBooks(items)
+      }
+
+      this.initialized = true
+      this.entities = entities
+      this.totalEntities = entities.length
+      this.totalShelves = Math.ceil(this.totalEntities / this.entitiesPerShelf)
+      this.$eventBus.$emit('bookshelf-total-entities', this.totalEntities)
+    },
     async loadPage(page) {
       if (!this.currentLibraryId) {
         console.error('[LazyBookshelf] loadPage current library id not set')
@@ -244,11 +277,11 @@ export default {
 
       var firstBookPage = Math.floor(firstBookIndex / this.booksPerFetch)
       var lastBookPage = Math.floor(lastBookIndex / this.booksPerFetch)
-      if (!this.pagesLoaded[firstBookPage]) {
+      if (!this.isLocalMode && !this.pagesLoaded[firstBookPage]) {
         console.log('Must load next batch', firstBookPage, 'book index', firstBookIndex)
         this.loadPage(firstBookPage)
       }
-      if (!this.pagesLoaded[lastBookPage]) {
+      if (!this.isLocalMode && !this.pagesLoaded[lastBookPage]) {
         console.log('Must load last next batch', lastBookPage, 'book index', lastBookIndex)
         this.loadPage(lastBookPage)
       }
@@ -301,12 +334,15 @@ export default {
       this.initialized = false
 
       this.initSizeData()
-      if (this.user) {
+      if (this.isLocalMode) {
+        await this.loadLocalEntities()
+        this.totalShelves = Math.ceil(this.totalEntities / this.entitiesPerShelf)
+        await this.$nextTick() // let the shelf rows render before cards are mounted into them
+        this.mountEntites(0, Math.min(this.totalEntities, this.shelvesPerPage * this.entitiesPerShelf))
+      } else {
         await this.loadPage(0)
         var lastBookIndex = Math.min(this.totalEntities, this.shelvesPerPage * this.entitiesPerShelf)
         this.mountEntites(0, lastBookIndex)
-      } else {
-        // Local only
       }
     },
     remountEntities() {
@@ -346,10 +382,10 @@ export default {
     },
     async init() {
       if (this.isFirstInit) return
-      if (!this.user) {
-        // Offline support not available
+      if (this.isLocalMode) {
+        this.isFirstInit = true
+        this.initSizeData()
         await this.resetEntities()
-        this.$eventBus.$emit('bookshelf-total-entities', 0)
         return
       }
 
@@ -373,7 +409,6 @@ export default {
     },
     scroll(e) {
       if (!e || !e.target) return
-      if (!this.user) return
       var { scrollTop } = e.target
       this.handleScroll(scrollTop)
     },

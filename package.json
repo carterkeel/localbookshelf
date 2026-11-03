@@ -1,6 +1,6 @@
 {
   "name": "audiobookshelf-app",
-  "version": "0.14.2-beta",
+  "version": "0.1.0",
   "author": "advplyr",
   "scripts": {
     "dev": "nuxt --hostname 0.0.0.0 --port 1337",
@@ -8,7 +8,7 @@
     "start": "nuxt --hostname 0.0.0.0 --port 1337",
     "generate": "nuxt generate",
     "sync": "nuxt generate && npx cap sync",
-    "test:local": "node --test utils/local/__tests__/folderParsing.test.js utils/local/__tests__/buildScanItems.test.js utils/local/__tests__/matcher.test.js utils/local/__tests__/matchLibrary.test.js utils/local/__tests__/organize.test.js",
+    "test:local": "node --test utils/local/__tests__/folderParsing.test.js utils/local/__tests__/buildScanItems.test.js utils/local/__tests__/matcher.test.js utils/local/__tests__/matchLibrary.test.js utils/local/__tests__/organize.test.js utils/local/__tests__/seriesInference.test.js",
     "icons-android": "cordova-res android --skip-config --copy",
     "ionic:build": "npm run build",
     "ionic:serve": "npm run dev",

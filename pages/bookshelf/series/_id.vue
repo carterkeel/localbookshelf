@@ -6,9 +6,18 @@
 import { Dialog } from '@capacitor/dialog'
 import { AbsDownloader } from '@/plugins/capacitor'
 import cellularPermissionHelpers from '@/mixins/cellularPermissionHelpers'
+import organize from '@/utils/local/organize'
 
 export default {
   async asyncData({ params, app, store, redirect }) {
+    if (!store.state.user.serverConnectionConfig) {
+      // No server: the series is made of books indexed on this device
+      const items = (await app.$db.getLocalLibraryItems('book')) || []
+      const local = organize.buildSeriesEntities(items.filter((i) => i.media?.metadata)).find((s) => s.id === params.id)
+      if (!local) return redirect('/bookshelf/series')
+      store.commit('globals/setSeries', { id: local.id, name: local.name })
+      return { series: { id: local.id, name: local.name }, seriesId: params.id }
+    }
     var series = await app.$nativeHttp.get(`/api/series/${params.id}`).catch((error) => {
       console.error('Failed', error)
       return false
