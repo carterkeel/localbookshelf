@@ -28,7 +28,13 @@ android {
     viewBinding true
     buildConfig true
   }
+  // Java and Kotlin must target the same JVM version (Kotlin uses the 17 toolchain above)
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
   kotlinOptions {
+    jvmTarget = '17'
     freeCompilerArgs = ['-Xjvm-default=all']
   }
   compileSdk rootProject.ext.compileSdkVersion
