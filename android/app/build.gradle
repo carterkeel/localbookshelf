@@ -19,7 +19,7 @@ kotlin {
     "--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
   ]
 
-  jvmToolchain(17)
+  jvmToolchain(21)
 }
 
 android {
@@ -28,13 +28,10 @@ android {
     viewBinding true
     buildConfig true
   }
-  // Java and Kotlin must target the same JVM version (Kotlin uses the 17 toolchain above)
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
+  // Java and Kotlin must target the same JVM version. `cap sync` (Capacitor 7) generates Java 21 in
+  // capacitor.build.gradle, so Kotlin uses 21 as well.
   kotlinOptions {
-    jvmTarget = '17'
+    jvmTarget = '21'
     freeCompilerArgs = ['-Xjvm-default=all']
   }
   compileSdk rootProject.ext.compileSdkVersion
