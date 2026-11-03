@@ -2,9 +2,17 @@
   <div class="w-full h-full py-6">
     <div class="flex items-center mb-2">
       <h1 class="text-base font-semibold px-2">
-        {{ $strings.HeaderLocalFolders }}
+        {{ $strings.HeaderLocalLibrary }}
       </h1>
       <button type="button" class="material-symbols text-xl" @click.stop="showLocalFolderMoreInfo">info</button>
+    </div>
+
+    <div v-if="!isIos && hasBookFolders" class="px-4 mb-2">
+      <ui-btn small color="success" class="w-full" :loading="scanning" :disabled="scanning || matching" @click="scanAllFolders">{{ scanning ? scanStatusText : matching ? matchStatusText : $strings.ButtonScanForNewBooks }}</ui-btn>
+      <div v-if="scanning && scanProgress.total" class="w-full h-1 bg-primary mt-2 rounded overflow-hidden">
+        <div class="h-full bg-success" :style="{ width: scanPercent + '%' }" />
+      </div>
+      <p class="text-xs text-fg-muted mt-2">{{ $strings.MessageLocalLibraryBrowseHint }}</p>
     </div>
 
     <div v-if="!isIos" class="w-full max-w-full px-2 py-2">
@@ -39,8 +47,10 @@
 <script>
 import { AbsFileSystem } from '@/plugins/capacitor'
 import { Dialog } from '@capacitor/dialog'
+import localLibraryScan from '@/mixins/localLibraryScan'
 
 export default {
+  mixins: [localLibraryScan],
   data() {
     return {
       localFolders: [],
@@ -62,6 +72,9 @@ export default {
     }
   },
   computed: {
+    hasBookFolders() {
+      return this.localFolders.some((f) => f.mediaType === 'book' && !f.id.startsWith('internal-'))
+    },
     isIos() {
       return this.$platform === 'ios'
     }
@@ -106,6 +119,9 @@ export default {
       if (!confirmResult.value) {
         window.open('https://www.audiobookshelf.org/guides/android_app_shared_storage', '_blank')
       }
+    },
+    afterLocalScan() {
+      return this.init()
     },
     async init() {
       const androidSdkVersion = await this.$getAndroidSDKVersion()

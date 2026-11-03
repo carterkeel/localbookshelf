@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <local-library-view v-if="isStandalone" mode="authors" />
+  <div v-else>
     <div id="bookshelf" class="w-full h-full p-4 overflow-y-auto">
       <div class="flex flex-wrap justify-center">
         <template v-for="author in authors">
@@ -21,6 +22,10 @@ export default {
     }
   },
   computed: {
+    // No server connected: show the authors of the books indexed on this device
+    isStandalone() {
+      return !this.$store.state.user.serverConnectionConfig
+    },
     currentLibraryId() {
       return this.$store.state.libraries.currentLibraryId
     },
@@ -30,6 +35,7 @@ export default {
   },
   methods: {
     async init() {
+      if (this.isStandalone) return
       this.cardWidth = (window.innerWidth - 64) / 2
       if (!this.currentLibraryId) {
         return

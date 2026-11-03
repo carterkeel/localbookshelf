@@ -111,6 +111,10 @@ export default {
             text: this.$strings.ButtonAuthors
           }
         ]
+        // Collections are a server feature
+        if (!this.$store.state.user.serverConnectionConfig) {
+          items = items.filter((i) => i.routeName !== 'bookshelf-collections')
+        }
       }
 
       if (this.userHasPlaylists) {

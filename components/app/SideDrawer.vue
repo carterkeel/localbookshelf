@@ -112,15 +112,9 @@ export default {
 
       if (this.$platform !== 'ios') {
         items.push({
-          icon: 'library_books',
-          iconOutlined: true,
-          text: this.$strings.HeaderLocalLibrary,
-          to: '/localMedia/library'
-        })
-        items.push({
           icon: 'folder',
           iconOutlined: true,
-          text: this.$strings.ButtonLocalMedia,
+          text: this.$strings.HeaderLocalLibrary,
           to: '/localMedia/folders'
         })
       } else {

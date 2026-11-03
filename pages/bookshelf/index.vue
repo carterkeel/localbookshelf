@@ -33,7 +33,6 @@
           <p class="text-sm text-fg-muted mb-2">{{ $strings.MessageOr }}</p>
           <ui-btn color="success" small @click="$router.push('/localMedia/folders?add=book')" class="w-44">{{ $strings.ButtonAddLocalBooks }}</ui-btn>
           <p class="text-xs text-fg-muted text-center mt-2 px-4">{{ $strings.MessageNoServerNeeded }}</p>
-          <ui-btn small @click="$router.push('/localMedia/library')" class="w-44 mt-3">{{ $strings.HeaderLocalLibrary }}</ui-btn>
         </div>
       </div>
     </div>
