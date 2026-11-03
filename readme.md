@@ -25,7 +25,7 @@ Metadata lookup needs an internet connection. It sends each book's title and aut
 
 ## Building
 
-GitHub Actions builds the app on every push and publishes it on the repo's **Releases** page: a version such as `v0.1.0` for each release, and a rolling \"latest build\" of `main`. Download `Localbookshelf.apk` and install it on your Android phone. The APK is signed with a temporary debug key, so installing a newer version over an older one can fail until the old one is uninstalled (your audio files are not touched; scan again afterwards). To build locally, see the setup sections below.
+GitHub Actions builds the app on every push and publishes it on the repo's **Releases** page: a version such as `v0.1.0` for each release, and a rolling "latest build" of `main`. Download `Localbookshelf.apk` and install it on your Android phone. The APK is signed with a temporary debug key, so installing a newer version over an older one can fail until the old one is uninstalled (your audio files are not touched; scan again afterwards). To build locally, see the setup sections below.
 
 ## Credits and license
 
