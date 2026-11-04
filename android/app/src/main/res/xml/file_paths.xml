@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
   <files-path name="downloads" path="downloads/" />
+  <!-- Covers saved for books indexed from the user's folders (embedded or downloaded covers) -->
+  <files-path name="scanned_covers" path="scanned_covers/" />
 </paths>

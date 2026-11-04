@@ -169,11 +169,16 @@ class PlaybackSession(
       var coverUri = Uri.parse(localLibraryItem?.coverContentUrl.toString())
       if (coverUri.toString().startsWith("file:")) {
         coverUri =
-                FileProvider.getUriForFile(
-                        ctx,
-                        "${BuildConfig.APPLICATION_ID}.fileprovider",
-                        coverUri.toFile()
-                )
+                try {
+                  FileProvider.getUriForFile(
+                          ctx,
+                          "${BuildConfig.APPLICATION_ID}.fileprovider",
+                          coverUri.toFile()
+                  )
+                } catch (e: IllegalArgumentException) {
+                  // A cover outside the shared folders must never crash playback
+                  Uri.parse("android.resource://${BuildConfig.APPLICATION_ID}/" + R.drawable.icon)
+                }
       }
 
       return coverUri

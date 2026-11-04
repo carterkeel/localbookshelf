@@ -54,7 +54,12 @@ class LocalLibraryItem(
   @JsonIgnore
   fun getCoverUri(ctx:Context): Uri {
     if (coverContentUrl?.startsWith("file:") == true) {
-      return FileProvider.getUriForFile(ctx, "${BuildConfig.APPLICATION_ID}.fileprovider", Uri.parse(coverContentUrl).toFile())
+      return try {
+        FileProvider.getUriForFile(ctx, "${BuildConfig.APPLICATION_ID}.fileprovider", Uri.parse(coverContentUrl).toFile())
+      } catch (e: IllegalArgumentException) {
+        // A cover outside the shared folders must never crash playback
+        Uri.parse("android.resource://${BuildConfig.APPLICATION_ID}/" + R.drawable.icon)
+      }
     }
     return if (coverContentUrl != null) Uri.parse(coverContentUrl) else Uri.parse("android.resource://${BuildConfig.APPLICATION_ID}/" + R.drawable.icon)
   }
